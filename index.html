@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPTV 服务客户端部署工具 (最终版)</title>
+    <title>IPTV 服务客户端部署工具</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background-color: #f8f9fa; color: #343a40; line-height: 1.7; }
         .container { background-color: #fff; padding: 20px 40px 40px 40px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
@@ -71,9 +71,9 @@
             const routeMode = document.getElementById('route-mode').value;
             const localPort = document.getElementById('local-port').value;
 
-            // 硬编码你的中央服务器地址和客户端镜像地址
-            const centralHubUrl = "http://ipvt.559888.xyz:8000";
-            const clientImageName = "你的DockerHub用户名/iptv-client:latest"; // !! 请务必修改成你自己的 !!
+            // **核心改动：硬编码你的中央服务器地址和客户端镜像地址**
+            const centralHubUrl = "http://ipvt.test.xyz:8000";
+            const clientImageName = "truman2077/openiptv:latest"; // 已更新为您真实的镜像地址！
             
             const localIp = document.getElementById('local-ip').value.trim() || '127.0.0.1';
 
