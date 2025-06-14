@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的IPTV服务 - 管理后台</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --light-gray: #f8f9fa;
+            --dark-gray: #343a40;
+            --text-color: #495057;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+        }
+        .hidden { display: none !important; }
+
+        /* Login Section */
+        #login-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+        .login-box h1 {
+            color: var(--dark-gray);
+            margin-bottom: 20px;
+        }
+        .login-box input {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+        .login-box button {
+            width: 100%;
+            padding: 14px;
+            font-size: 18px;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #login-error {
+            color: var(--danger-color);
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        /* Dashboard Section */
+        #dashboard-section {
+            padding: 20px;
+            max-width: 1200px;
+            margin: auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0;
+        }
+        .header button, #logout-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: var(--success-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #logout-btn {
+            background-color: var(--danger-color);
+        }
+
+        /* User Table */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow-x: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+            white-space: nowrap;
+        }
+        th {
+            background-color: var(--light-gray);
+            font-weight: 600;
+        }
+        td .token {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 3px 6px;
+            border-radius: 4px;
+            word-break: break-all;
+            display: inline-block;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle;
+        }
+        .delete-btn {
+            background: none;
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        #loader {
+            text-align: center;
+            padding: 50px;
+            font-size: 20px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 登录界面 -->
+    <div id="login-section">
+        <div class="login-box">
+            <h1>管理员登录</h1>
+            <input type="text" id="backend-url-input" placeholder="请输入后端服务器地址">
+            <input type="password" id="admin-token-input" placeholder="请输入你的管理员密码">
+            <button onclick="login()">登 录</button>
+            <p id="login-error" class="hidden">登录失败！请检查地址和密码。</p>
+        </div>
+    </div>
+
+    <!-- 管理后台主界面 (这是一个空的容器，登录后才会被填充) -->
+    <div id="dashboard-section" class="hidden"></div>
+
+    <script>
+        // 将后端地址和管理员Token存在 sessionStorage 中，这样刷新页面也不用重新登录
+        let backendUrl = sessionStorage.getItem('backendUrl');
+        let adminToken = sessionStorage.getItem('adminToken');
+
+        // 页面加载时检查是否已登录
+        window.onload = () => {
+            if (backendUrl && adminToken) {
+                // 如果已登录，直接渲染后台并加载数据
+                showDashboard();
+            }
+        };
+
+        // 核心改动：渲染后台界面的函数
+        function renderDashboard() {
+            const dashboard = document.getElementById('dashboard-section');
+            dashboard.innerHTML = `
+                <div class="header">
+                    <h1>用户管理看板</h1>
+                    <div>
+                        <button onclick="createToken()">+ 创建新用户</button>
+                        <button id="logout-btn" onclick="logout()">退出登录</button>
+                    </div>
+                </div>
+                <p>共 <strong id="user-count">0</strong> 位用户</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>描述</th>
+                                <th>用户Token</th>
+                                <th>创建时间</th>
+                                <th>访问次数</th>
+                                <th>最后访问</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="user-table-body"></tbody>
+                    </table>
+                    <div id="loader">正在加载用户数据...</div>
+                </div>
+            `;
+        }
+        
+        // 显示并填充后台的函数
+        async function showDashboard() {
+            document.getElementById('login-section').classList.add('hidden');
+            renderDashboard(); // 动态创建后台界面
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            await fetchTokens(); // 填充数据
+        }
+
+        // 登录函数
+        async function login() {
+            const urlInput = document.getElementById('backend-url-input');
+            const tokenInput = document.getElementById('admin-token-input');
+            const errorMsg = document.getElementById('login-error');
+            
+            backendUrl = urlInput.value.trim().replace(/\/$/, ''); // 去除末尾的 /
+            adminToken = tokenInput.value;
+
+            if (!backendUrl || !adminToken) {
+                alert('请输入后端地址和管理员密码！');
+                return;
+            }
+
+            try {
+                // 使用 fetch 预检登录信息
+                const response = await fetch(`${backendUrl}/admin/tokens`, {
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+
+                if (response.ok) {
+                    sessionStorage.setItem('backendUrl', backendUrl);
+                    sessionStorage.setItem('adminToken', adminToken);
+                    errorMsg.classList.add('hidden');
+                    await showDashboard();
+                } else {
+                    throw new Error('认证失败');
+                }
+            } catch (error) {
+                console.error('登录失败:', error);
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        // 退出登录
+        function logout() {
+            sessionStorage.removeItem('backendUrl');
+            sessionStorage.removeItem('adminToken');
+            window.location.reload();
+        }
+
+        // 封装 fetch 请求，自动添加后端地址和Token
+        async function apiFetch(endpoint, options = {}) {
+            const url = `${backendUrl}${endpoint}`;
+            const headers = {
+                ...options.headers,
+                'X-Admin-Token': adminToken,
+            };
+            if(options.body) {
+                headers['Content-Type'] = 'application/json';
+            }
+            const response = await fetch(url, { ...options, headers });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || '请求失败');
+            }
+            return response.json();
+        }
+
+        // 获取并展示所有用户Token
+        async function fetchTokens() {
+            const tableBody = document.getElementById('user-table-body');
+            const userCount = document.getElementById('user-count');
+            const loader = document.getElementById('loader');
+            
+            if (!tableBody) return; // 如果界面还没渲染，则退出
+
+            loader.classList.remove('hidden');
+            tableBody.innerHTML = '';
+
+            try {
+                const tokens = await apiFetch('/admin/tokens');
+                const tokenKeys = Object.keys(tokens);
+                userCount.textContent = tokenKeys.length;
+
+                if (tokenKeys.length === 0) {
+                    loader.textContent = '暂无用户。点击 "创建新用户" 添加第一位吧！';
+                    return;
+                }
+
+                tokenKeys.forEach(token => {
+                    const userData = tokens[token];
+                    const row = document.createElement('tr');
+                    const lastAccess = userData.last_access ? new Date(userData.last_access).toLocaleString() : '从未访问';
+
+                    row.innerHTML = `
+                        <td>${userData.description}</td>
+                        <td><div class="token" title="${token}">${token}</div></td>
+                        <td>${new Date(userData.created_at).toLocaleString()}</td>
+                        <td>${userData.access_count}</td>
+                        <td>${lastAccess}</td>
+                        <td><button class="delete-btn" onclick="deleteToken('${token}')">删除</button></td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+                loader.classList.add('hidden');
+            } catch (error) {
+                console.error('获取Token失败:', error);
+                if (loader) loader.textContent = `加载失败: ${error.message}`;
+            }
+        }
+
+        // 创建新用户Token
+        async function createToken() {
+            const description = prompt("请输入新用户的描述 (例如: '给朋友小明用'):", "");
+            if (description === null || description.trim() === "") return;
+
+            try {
+                const result = await apiFetch('/admin/tokens', {
+                    method: 'POST',
+                    body: JSON.stringify({ description })
+                });
+                alert(`创建成功！\n新用户的Token是: ${result.new_token}`);
+                await fetchTokens();
+            } catch (error) {
+                alert(`创建失败: ${error.message}`);
+            }
+        }
+
+        // 删除 (封禁) 用户Token
+        async function deleteToken(token) {
+            if (!confirm(`确定要删除 (封禁) 这个用户吗？\nToken: ${token}\n\n此操作不可恢复！`)) return;
+
+            try {
+                await apiFetch(`/admin/tokens/${token}`, { method: 'DELETE' });
+                alert('删除成功！该用户的访问权限已被吊销。');
+                await fetchTokens();
+            } catch (error) {
+                alert(`删除失败: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
