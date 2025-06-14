@@ -18,9 +18,15 @@
         .hidden { display: none !important; }
         .login-section { display: flex; justify-content: center; align-items: center; height: 100vh; }
         .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 450px; text-align: center; }
-        .login-box h1 { color: var(--dark-gray); margin-bottom: 20px; }
+        .login-box h1 { color: var(--dark-gray); margin-bottom: 10px; }
+        .login-box .login-intro { color: #6c757d; margin-bottom: 25px; font-size: 15px; }
         .login-box input { width: 100%; padding: 14px; font-size: 16px; border: 1px solid #ced4da; border-radius: 8px; box-sizing: border-box; margin-bottom: 20px; }
-        .login-box button { width: 100%; padding: 14px; font-size: 18px; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; }
+        .login-box button { width: 100%; padding: 14px; font-size: 18px; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; position: relative; transition: background-color 0.2s; }
+        .login-box button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        .btn-loader { width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .remember-me { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 20px; font-size: 14px; }
+        .remember-me input { width: auto; margin: 0 8px 0 0; }
         #login-error { color: var(--danger-color); margin-top: 15px; font-size: 14px; }
         #dashboard-section { padding: 20px; max-width: 1200px; margin: auto; }
         .header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px; }
@@ -47,19 +53,38 @@
 <body>
     <div id="login-section">
         <div class="login-box">
-            <h1>管理员登录</h1>
-            <input type="text" id="backend-url-input" placeholder="请输入后端服务器地址">
-            <input type="password" id="admin-token-input" placeholder="请输入你的管理员密码 (ADMIN_TOKEN)">
-            <button onclick="login()">登 录</button>
+            <h1>🔐 管理员登录</h1>
+            <p class="login-intro">请输入您的后端服务地址和管理员密码</p>
+            <input type="text" id="backend-url-input" placeholder="后端服务器地址, e.g.">
+            <input type="password" id="admin-token-input" placeholder="管理员密码 (ADMIN_TOKEN)">
+            <div class="remember-me">
+                <input type="checkbox" id="remember-me-checkbox" checked>
+                <label for="remember-me-checkbox">记住登录信息</label>
+            </div>
+            <button id="login-btn" onclick="login()">
+                <span class="btn-text">登 录</span>
+                <span class="btn-loader hidden"></span>
+            </button>
             <p id="login-error" class="hidden">登录失败！请检查地址和密码。</p>
         </div>
     </div>
     <div id="dashboard-section" class="hidden"></div>
     <script>
-        let backendUrl = sessionStorage.getItem('backendUrl');
-        let adminToken = sessionStorage.getItem('adminToken');
+        const storage = () => document.getElementById('remember-me-checkbox')?.checked ? localStorage : sessionStorage;
 
-        window.onload = () => { if (backendUrl && adminToken) { showDashboard(); } };
+        let backendUrl = localStorage.getItem('backendUrl') || sessionStorage.getItem('backendUrl');
+        let adminToken = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
+
+        window.onload = () => {
+            const urlInput = document.getElementById('backend-url-input');
+            const tokenInput = document.getElementById('admin-token-input');
+            if(backendUrl) urlInput.value = backendUrl;
+            if(adminToken) tokenInput.value = adminToken;
+            
+            if (backendUrl && adminToken) {
+                showDashboard();
+            }
+        };
 
         function renderDashboard() {
             document.getElementById('dashboard-section').innerHTML = `
@@ -94,24 +119,50 @@
         async function login() {
             const urlInput = document.getElementById('backend-url-input');
             const tokenInput = document.getElementById('admin-token-input');
+            const loginBtn = document.getElementById('login-btn');
+            const btnText = loginBtn.querySelector('.btn-text');
+            const btnLoader = loginBtn.querySelector('.btn-loader');
             const errorMsg = document.getElementById('login-error');
+
             backendUrl = urlInput.value.trim().replace(/\/$/, '');
             adminToken = tokenInput.value;
-            if (!backendUrl || !adminToken) { alert('请输入后端地址和管理员密码！'); return; }
+
+            if (!backendUrl || !adminToken) {
+                alert('请输入后端地址和管理员密码！');
+                return;
+            }
+
+            // --- UI Feedback ---
+            loginBtn.disabled = true;
+            btnText.classList.add('hidden');
+            btnLoader.classList.remove('hidden');
+            errorMsg.classList.add('hidden');
+
             try {
                 const response = await fetch(`${backendUrl}/admin/tokens`, { headers: { 'X-Admin-Token': adminToken } });
                 if (response.ok) {
-                    sessionStorage.setItem('backendUrl', backendUrl);
-                    sessionStorage.setItem('adminToken', adminToken);
-                    errorMsg.classList.add('hidden');
+                    const currentStorage = storage();
+                    currentStorage.setItem('backendUrl', backendUrl);
+                    currentStorage.setItem('adminToken', adminToken);
                     await showDashboard();
-                } else { throw new Error('认证失败'); }
-            } catch (error) { errorMsg.classList.remove('hidden'); }
+                } else {
+                    throw new Error('认证失败');
+                }
+            } catch (error) {
+                errorMsg.classList.remove('hidden');
+            } finally {
+                // --- Restore UI ---
+                loginBtn.disabled = false;
+                btnText.classList.remove('hidden');
+                btnLoader.classList.add('hidden');
+            }
         }
 
         function logout() {
             sessionStorage.removeItem('backendUrl');
             sessionStorage.removeItem('adminToken');
+            localStorage.removeItem('backendUrl');
+            localStorage.removeItem('adminToken');
             window.location.reload();
         }
 
