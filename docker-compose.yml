@@ -1,0 +1,23 @@
+# docker-compose.yml
+
+services:
+  iptv-service:
+    # build: . 会告诉docker-compose使用当前目录下的Dockerfile来构建镜像
+    build: .
+    # 给你的容器取个名字
+    container_name: my-dynamic-iptv-service
+    # 总是自动重启，确保服务不中断
+    restart: always
+    # 端口映射
+    ports:
+      - "8000:8000"
+    # 卷挂载 (非常重要!)
+    # 这会将容器内的 /app/database.json 文件链接到你服务器的当前目录下的同名文件
+    # 这样做的好处是，即使你重启或更新容器，你的用户数据(database.json)也不会丢失。
+    volumes:
+      - ./database.json:/app/database.json
+    # 环境变量 (在这里设置你的密码!)
+    environment:
+      # 核心修正：使用更标准的 key: 'value' 格式，避免任何解析歧义
+      ADMIN_TOKEN: '你的密码'
+      PROXY_ENABLED: 'true'
