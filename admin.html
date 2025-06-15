@@ -17,21 +17,7 @@
         }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: var(--bg-light); color: var(--text-dark); }
         .hidden { display: none !important; }
-        
-        /* 核心改动：将登录区域设置为一个固定的全屏居中遮罩层 */
-        .login-section { 
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            background-color: var(--bg-light);
-            z-index: 100;
-        }
-
+        .login-section { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background-color: var(--bg-light); z-index: 100; }
         .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 450px; text-align: center; }
         .login-box h1 { color: var(--dark-gray); margin-bottom: 10px; }
         .login-box .login-intro { color: var(--text-light); margin-bottom: 25px; font-size: 15px; }
@@ -44,6 +30,8 @@
         .remember-me { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 20px; font-size: 14px; }
         .remember-me input { width: auto; margin: 0 8px 0 0; }
         #login-error { color: var(--danger-color); margin-top: 15px; font-size: 14px; }
+        .captcha-container { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        #captcha-canvas { border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; }
         #dashboard-section { padding: 20px; max-width: 1400px; margin: auto; }
         .header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px; }
         .header h1 { margin: 0; }
@@ -73,8 +61,12 @@
         <div class="login-box">
             <h1>🔐 管理员后台</h1>
             <p class="login-intro">请输入您的后端服务地址和管理员密码</p>
-            <input type="text" id="backend-url-input" placeholder="后端服务器地址">
-            <input type="password" id="admin-token-input" placeholder="管理员密码">
+            <input type="text" id="backend-url-input" placeholder="后端服务器地址, e.g., https://iptv.wans.eu.org">
+            <input type="password" id="admin-token-input" placeholder="管理员密码 (ADMIN_TOKEN)">
+            <div class="captcha-container">
+                <input type="text" id="captcha-input" placeholder="请输入右侧的验证码" style="margin-bottom: 0;">
+                <canvas id="captcha-canvas" width="120" height="50" onclick="generateCaptcha()"></canvas>
+            </div>
             <div class="remember-me">
                 <input type="checkbox" id="remember-me-checkbox" checked>
                 <label for="remember-me-checkbox">记住登录信息</label>
@@ -89,11 +81,42 @@
     <div id="dashboard-section" class="hidden"></div>
     <script>
         const storage = () => document.getElementById('remember-me-checkbox')?.checked ? localStorage : sessionStorage;
-
+        let captchaText = '';
         let backendUrl = localStorage.getItem('backendUrl') || sessionStorage.getItem('backendUrl');
         let adminToken = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
 
+        function generateCaptcha() {
+            const canvas = document.getElementById('captcha-canvas');
+            const ctx = canvas.getContext('2d');
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            captchaText = '';
+            for (let i = 0; i < 5; i++) {
+                captchaText += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw random lines
+            for (let i = 0; i < 5; i++) {
+                ctx.strokeStyle = `rgba(${Math.random()*150}, ${Math.random()*150}, ${Math.random()*150}, 0.2)`;
+                ctx.beginPath();
+                ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+                ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+                ctx.stroke();
+            }
+
+            // Draw text
+            ctx.font = '30px Arial';
+            ctx.fillStyle = '#334155';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(captchaText, canvas.width / 2, canvas.height / 2);
+        }
+
         window.onload = () => {
+            generateCaptcha();
             const urlInput = document.getElementById('backend-url-input');
             const tokenInput = document.getElementById('admin-token-input');
             if(backendUrl) urlInput.value = backendUrl;
@@ -137,11 +160,22 @@
         async function login(isAutoLogin = false) {
             const urlInput = document.getElementById('backend-url-input');
             const tokenInput = document.getElementById('admin-token-input');
+            const captchaInput = document.getElementById('captcha-input');
             const loginBtn = document.getElementById('login-btn');
             const btnText = loginBtn.querySelector('.btn-text');
             const btnLoader = loginBtn.querySelector('.btn-loader');
             const errorMsg = document.getElementById('login-error');
 
+            if (!isAutoLogin) {
+                 if (captchaInput.value.toLowerCase() !== captchaText.toLowerCase()) {
+                    alert('验证码错误！');
+                    generateCaptcha();
+                    captchaInput.value = '';
+                    captchaInput.focus();
+                    return;
+                }
+            }
+            
             backendUrl = urlInput.value.trim().replace(/\/$/, '');
             adminToken = tokenInput.value;
 
@@ -165,6 +199,7 @@
                 } else { throw new Error('认证失败'); }
             } catch (error) {
                 if (!isAutoLogin) errorMsg.classList.remove('hidden');
+                generateCaptcha(); // 登录失败后刷新验证码
             } finally {
                 loginBtn.disabled = false;
                 btnText.classList.remove('hidden');
