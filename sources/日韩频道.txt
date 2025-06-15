@@ -1,0 +1,2 @@
+某高清电影频道,[http://example.com/live/1.m3u8](http://example.com/live/1.m3u8)
+某体育频道,[http://example.com/live/2.m3u8](http://example.com/live/2.m3u8)
